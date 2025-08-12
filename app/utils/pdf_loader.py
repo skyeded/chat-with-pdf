@@ -1,4 +1,4 @@
-from langchain_pymupdf4llm import PyMuPDF4LLMLoader
+from docling.document_converter import DocumentConverter
 import logging
 import os
 
@@ -16,7 +16,7 @@ def load_pdf(directory: str):
     for pdf_file in os.listdir(directory):
         if '/' not in directory[-1]:
             directory = str(directory)+'/'
-            
+
         file_path = os.path.join(str(directory)+str(pdf_file))
 
         if not pdf_file.lower().endswith(".pdf"):
@@ -26,14 +26,12 @@ def load_pdf(directory: str):
         logging.info(f"Loading PDF: {file_path}")
 
         try:
-            loader = PyMuPDF4LLMLoader(file_path=os.path.join(file_path))
-            document = loader.load()
-            documents.extend(document)
-            logging.info(f"=={pdf_file}== successfully loaded and extended.")
+            converter = DocumentConverter()
+            document = converter.convert(source=file_path)
+            documents.append(document.document)
+            logging.info(f"{pdf_file} successfully loaded and extended.")
         except Exception as e:
             logging.error(f"Failed to load {pdf_file}: {str(e)}")
     
     logging.info(f"Total documents loaded: {len(documents)}")
     return documents
-
-print(load_pdf("./data/papers"))
