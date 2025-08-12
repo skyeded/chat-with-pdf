@@ -17,7 +17,7 @@ pdf_directory = "./data/papers"
 documents = load_pdf(directory=pdf_directory)
 
 def save_as_text(chunk: str):
-    with open('../example_data/chunks', 'w', encoding='utf-8') as f:
+    with open('./app/example_data/chunks', 'w', encoding='utf-8') as f:
         f.write(chunk)
 
 chunks = list()
