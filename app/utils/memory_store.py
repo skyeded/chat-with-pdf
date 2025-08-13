@@ -7,10 +7,6 @@ from app.utils.pdf_loader import load_pdf
 
 from typing import List
 
-pdf_directory = "./data/papers"
-documents = load_pdf(directory=pdf_directory)
-chunks = text_processing(documents=documents)
-
 def embeddings_to_vectordb(chunks: List):
     processed_chunks = [
         {
@@ -34,7 +30,7 @@ def embeddings_to_vectordb(chunks: List):
     ]
 
     db = lancedb.connect("data/lancedb")
-    func = get_registry().get("huggingface").create(name="BAAI/bge-m3")
+    func = get_registry().get("huggingface").create(name="intfloat/multilingual-e5-large-instruct")
 
     class ChunkMetadata(LanceModel):
         filename: str | None
@@ -51,4 +47,7 @@ def embeddings_to_vectordb(chunks: List):
 
     return table
 
+pdf_directory = "./data/papers"
+documents = load_pdf(directory=pdf_directory)
+chunks = text_processing(documents=documents)
 print(embeddings_to_vectordb(chunks=chunks).to_pandas())

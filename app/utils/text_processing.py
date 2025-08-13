@@ -9,8 +9,8 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-TOKENIZER_MODEL="BAAI/bge-m3"
-MAX_TOKENS=8192
+TOKENIZER_MODEL="intfloat/multilingual-e5-large-instruct"
+MAX_TOKENS=512
 
 def save_as_text(chunk: str):
     with open('./app/example_data/chunks', 'w', encoding='utf-8') as f:
