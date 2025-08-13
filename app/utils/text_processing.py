@@ -1,4 +1,3 @@
-from app.utils.pdf_loader import load_pdf
 from docling.chunking import HybridChunker
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from transformers import AutoTokenizer
@@ -12,9 +11,6 @@ logging.basicConfig(
 
 TOKENIZER_MODEL="BAAI/bge-m3"
 MAX_TOKENS=8192
-
-pdf_directory = "./data/papers"
-documents = load_pdf(directory=pdf_directory)
 
 def save_as_text(chunk: str):
     with open('./app/example_data/chunks', 'w', encoding='utf-8') as f:
@@ -37,13 +33,14 @@ def text_processing(documents: list):
         logging.info(f"Separating {document_fname} into chunks")
         try:
             chunk_iter = chunker.chunk(dl_doc=document)
-            chunks.extend(chunk_iter)
+            chunks.extend(list(chunk_iter))
         except Exception as e:
             logging.error(f"Cannot separate {document_fname} into chunks: {str(e)}")
 
-    for chunk in chunks[:10]:
-        save_as_text(chunk.text)
+        logging.info(f"Separated {document_fname} into {int(len(list(chunk_iter)))} chunks")
+
+    logging.info(f"Total number of chunks: {int(len(chunks))}")
+    # for chunk in chunks[:10]:
+    #     save_as_text(chunk.text)
 
     return chunks
-
-print(text_processing(documents=documents))
