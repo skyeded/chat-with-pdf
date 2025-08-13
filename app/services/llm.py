@@ -6,6 +6,12 @@ llm = init_chat_model(
     model_provider = "ollama"
 )
 
+# llm = init_chat_model(
+#     model = "gemini-2.5-pro",
+#     temperature = 0,
+#     model_provider= "google_genai"
+# )
+
 # messages = [
 #     ("system",
 #      "You are a helpful assistant."),

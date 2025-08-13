@@ -11,24 +11,44 @@ load_dotenv()
 
 # create pdf search tool
 @tool("search_vectorDB")
-def search_vectorDB(query: str, num_results: int = 25) -> str:
+def search_vectorDB(query: str, num_results: int = 12) -> str:
     """
     Search the LanceDB 'docling' table for relevant context.
+
+    IMPORTANT:
+    Always pass the user's query EXACTLY as they wrote it.
+    Do not paraphrase, summarize, or remove words.
     Args:
         query: The search query text.
         num_results: The number of top results to return.
     Returns:
         A string containing the top matching chunks.
     """
-    db = lancedb.connect("../../data/lancedb")
+    db = lancedb.connect("./data/lancedb")
     table = db.open_table(name="docling")
 
     results_df = table.search(query).limit(num_results).to_pandas()
-    # Format into a single text block
-    if "text" in results_df.columns:
-        return "\n\n".join(results_df["text"].tolist())
-    else:
-        return results_df.to_string()
+    contexts=[]
+
+    for _, row in results_df.iterrows():
+        filename = row["metadata"]["filename"]
+        page_numbers = row["metadata"]["page_numbers"]
+        title = row["metadata"]["title"]
+
+        source_parts = []
+        if filename:
+            source_parts.append(filename)
+            
+        if page_numbers:
+            source_parts.append(f"p. {', '.join(str(p) for p in page_numbers)}")
+        source = f"\nSource: {' - '.join(source_parts)}"
+
+        if title:
+            source += f"\nTitle: {title}"
+
+        contexts.append(f"{row['text']}{source}")
+    
+    return "\n\n".join(contexts)
     
 # create pdf agent
 pdf_agent = create_react_agent(model=llm,
