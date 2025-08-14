@@ -36,13 +36,14 @@
     - [Installation](#installation)
     - [Usage](#usage)
 - [Roadmap](#roadmap)
+- [Tradeoffs & Next Steps](#tradeoffs-and-next-steps)
 - [Acknowledgments](#acknowledgments)
 
 ---
 
 ## Overview
 
-Background 
+**Background**
 We are exploring the capabilities of modern LLM architectures to accelerate research workflows. 
 We’ve collected a set of academic papers (PDFs) on generative AI, and we need your help to 
 build a backend system that enables intelligent question-answering over this corpus. 
@@ -65,7 +66,7 @@ cannot be found in the provided PDFs.
 <img src="./imgs_for_readme/rag_arch.png" alt="RAG">
 
 
-<img src="./imgs_for_readme/agentic_arch.png" alt="RAG">
+<img src="./imgs_for_readme/agentic_arch.png" alt="agentic">
 
 ---
 
@@ -73,30 +74,69 @@ cannot be found in the provided PDFs.
 
 <h5> ❯ RAG Pipeline + PDF Agent - Search for information inside PDFs</h5>
 
-<code>@tool("search_vectorDB")
+``` Found in (./app/agents/pdf_agent.py) ``` 
+
+``` 
+@tool("search_vectorDB")
 def search_vectorDB(query: str) -> str:
 .....
-return "\n\n".join(contexts)</code>
+	return "\n\n".join(contexts)
+``` 
 
 <h5> ❯ Web Search Tool + Web Agent - Search for informaton on website</h5>
-<code>search_tool = DuckDuckGoSearchRun() </code>
 
-<code>web_agent = 
-create_react_agent(model=llm,
-tools=[search_tool],
-prompt=make_system_prompt(
-	"Your task is to search for information and display information found on website."
+``` Found in (./app/agents/web_agent.py) ``` 
+
+```search_tool = DuckDuckGoSearchRun()``` 
+
+``` 
+web_agent = 
+	create_react_agent(model=llm,
+	tools=[search_tool],
+	prompt=make_system_prompt(
+		"Your task is to search for information and display information found on website."
+		)
 	)
-)</code>
+```
 
 <h5> ❯ Clarification Agent - Clarify ambiguous questions </h5>
-<code>clarification_agent = create_react_agent(model=llm,
-tools=[],
-prompt="Your task is to detect questions that are ambiguous or vague."
-       "For example: if the user asked 'How many examples are enough for good accuracy?' is vague."
-       "\n\nUse pdf_agent first to search for information inside the pdf, respond 'pdf_agent'."
-       "If information are not found inside the pdf, use web_agent to search information on website instead, respond 'web_agent'."
-       "\n\nIf the question is too vague then ask them in a short sentence to provide more information or 'clarity' and prefix your response with FINAL ANSWER: ")</code>
+
+``` Found in (./app/agents/clarification_agent.py) ``` 
+
+```
+clarification_agent = create_react_agent(model=llm,
+	tools=[],
+	prompt="Your task is to detect questions that are ambiguous or vague."
+		"For example: if the user asked 'How many examples are enough for good accuracy?' is vague."
+		"\n\nUse pdf_agent first to search for information inside the pdf, respond 'pdf_agent'."
+		"If information are not found inside the pdf, use web_agent to search 
+		information on website instead, respond 'web_agent'."
+		"\n\nIf the question is too vague then ask them in a short sentence to provide more 
+		information or 'clarity' and prefix your response with FINAL ANSWER: ")
+```
+
+<h5> ❯ Lang Graph implementation </h5>
+<img src="./imgs_for_readme/gen_graph.png" alt="gen">
+
+**Description:**
+This graph is created based on the efficiency and use case based on goals listed by the assignments.
+The flow started by going through **clarify** node which contain **clarification_agent** for deciding whether to continue to the next node
+based on the clarity of the question.
+
+**search_pdf** node contain **pdf_agent** which leverage the use of RAG tool to find relevant context from PDFs.
+**search_web** node contain **web_agent** which uses duckduckgo_search as a search tool for searching information relevant to the query on websites.
+
+If the **clarify** node detects that the question is out-of-scope or results are not found from searching inside PDFs it moves to **search_web** node for context.
+
+The function below is the core function to decide whether to move to the next node or END the traversal (and return the response):
+```
+def get_next_node(last_message: BaseMessage, goto: str):
+    if "FINAL ANSWER" in last_message.content:
+        # Any agent decided the work is done
+        return END
+    return goto
+```
+``` This function and functions for creating nodes can be found in (./app/agents/workflow.py) ``` 
 
 ---
 
@@ -219,6 +259,14 @@ Run the PDFs ingestion script by:
 Select 3’ prompt? → **Davinci-codex attains 67 % execution accuracy on the Spider dev set with that prompt style**
 - [X] **`Example 4`**: “What did OpenAI release this month?” 
 → **The system should recognize this is not covered in the PDFs and search the web.**
+
+---
+
+## Tradeoffs and Next Steps
+
+<h4> Tradeoffs </h4>
+
+<h4> Next Steps </h4>
 
 ---
 
