@@ -194,9 +194,16 @@ class Chunks(LanceModel):
     text: str = func.SourceField()
     vector: Vector(func.ndims()) = func.VectorField()
     metadata: ChunkMetadata
-	
+
 table = db.create_table("docling", schema=Chunks, mode="overwrite")
 table.add(processed_chunks)
+```
+All the functions are then called to create the complete pipeline:
+```
+pdf_directory = "./data/papers" # directory of papers
+documents = load_pdf(directory=pdf_directory) # load data from PDFs
+chunks = text_processing(documents=documents) # process text
+print(embeddings_to_vectordb(chunks=chunks).to_pandas()) # embed text into vector database
 ```
 
 ---
