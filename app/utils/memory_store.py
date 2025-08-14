@@ -7,7 +7,10 @@ from app.utils.pdf_loader import load_pdf
 
 from typing import List
 
+# function for embeddings text into vectorstore with metadata
 def embeddings_to_vectordb(chunks: List):
+
+    # process chunks into appropriate format to be used when storing as class
     processed_chunks = [
         {
             "text": chunk.text,
@@ -29,14 +32,17 @@ def embeddings_to_vectordb(chunks: List):
         for chunk in chunks
     ]
 
+    # connect to db and create function for using hf embedding model
     db = lancedb.connect("data/lancedb")
-    func = get_registry().get("huggingface").create(name="intfloat/multilingual-e5-large-instruct")
+    func = get_registry().get("huggingface").create(name="intfloat/multilingual-e5-large-instruct") #hf model
 
+    # create class for storing metadata
     class ChunkMetadata(LanceModel):
         filename: str | None
         page_numbers: List[int] | None
         title: str | None
 
+    # create class for storing text, vector and metadata into table
     class Chunks(LanceModel):
         text: str = func.SourceField()
         vector: Vector(func.ndims()) = func.VectorField()
@@ -47,7 +53,7 @@ def embeddings_to_vectordb(chunks: List):
 
     return table
 
-pdf_directory = "./data/papers"
-documents = load_pdf(directory=pdf_directory)
-chunks = text_processing(documents=documents)
-print(embeddings_to_vectordb(chunks=chunks).to_pandas())
+pdf_directory = "./data/papers" # directory of papers
+documents = load_pdf(directory=pdf_directory) # load data from PDFs
+chunks = text_processing(documents=documents) # process text
+print(embeddings_to_vectordb(chunks=chunks).to_pandas()) # embed text into vector database

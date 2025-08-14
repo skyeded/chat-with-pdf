@@ -1,6 +1,7 @@
 from langgraph.prebuilt import create_react_agent
 from app.services.llm import llm
 
+# create clarification agent
 clarification_agent = create_react_agent(model=llm,
                                          tools=[],
                                          prompt="Your task is to detect questions that are ambiguous or vague."

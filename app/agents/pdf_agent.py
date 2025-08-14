@@ -26,14 +26,18 @@ def search_vectorDB(query: str) -> str:
     Returns:
         A string containing the top matching chunks.
     """
+
+    # connect to vectordb
     db = lancedb.connect("./data/lancedb")
     table = db.open_table(name="docling")
 
+    # implement reranker
     table.create_fts_index("text", replace=True)
     reranker = LinearCombinationReranker()
     results_df = table.search(query, query_type="hybrid").rerank(reranker=reranker).limit(10).to_pandas()
     contexts=[]
 
+    # get and store metadata
     for _, row in results_df.iterrows():
         filename = row["metadata"]["filename"]
         page_numbers = row["metadata"]["page_numbers"]

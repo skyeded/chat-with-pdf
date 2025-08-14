@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# DuckDuckGo is more compatible with gemini model
 search_tool = DuckDuckGoSearchRun()
 
 # create web agent

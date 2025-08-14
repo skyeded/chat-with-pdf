@@ -12,14 +12,18 @@ from dotenv import load_dotenv
 from typing import Literal
 
 load_dotenv()
+
+# create short-term memory (for one session)
 checkpointer = InMemorySaver()
 
+# function for deciding whether to END or route to the next node
 def get_next_node(last_message: BaseMessage, goto: str):
     if "FINAL ANSWER" in last_message.content:
         # Any agent decided the work is done
         return END
     return goto
 
+# node containing clarification_agent
 def clarification_node(
     state: MessagesState,
 ) -> Command[Literal["search_pdf", "search_web", END]]:
@@ -43,6 +47,7 @@ def clarification_node(
         goto=goto,
     )
 
+# node containing pdf_agent
 def pdf_node(
     state: MessagesState,
 ) -> Command[Literal["search_web", END]]:
@@ -61,6 +66,7 @@ def pdf_node(
         goto=goto,
     )
 
+# node containing web_agent
 def web_node(
     state: MessagesState,
 ) -> Command[Literal[END]]:
@@ -79,6 +85,7 @@ def web_node(
         goto=goto,
     )
 
+# function for clearning the memory
 def clear_memory_func(memory: BaseCheckpointSaver, thread_id: str) -> None:
     """ Clear the memory for a given thread_id. """
     try:
@@ -99,10 +106,11 @@ def clear_memory_func(memory: BaseCheckpointSaver, thread_id: str) -> None:
     except Exception as e:
         print(f"Error clearing InMemorySaver storage for thread_id {thread_id}: {e}")
 
+# create graph
 workflow = StateGraph(MessagesState)
 workflow.add_node("clarify", clarification_node)
 workflow.add_node("search_pdf", pdf_node)
 workflow.add_node("search_web", web_node)
 
 workflow.add_edge(START, "clarify")
-graph = workflow.compile(checkpointer=checkpointer)
+graph = workflow.compile(checkpointer=checkpointer) # add short_term memory to graph

@@ -12,14 +12,16 @@ logging.basicConfig(
 TOKENIZER_MODEL="intfloat/multilingual-e5-large-instruct"
 MAX_TOKENS=512
 
+# to see chunks example
 def save_as_text(chunk: str):
     with open('./app/example_data/chunks', 'w', encoding='utf-8') as f:
         f.write(chunk)
 
+# function for storing chunks as list
 chunks = list()
 def text_processing(documents: list):
     tokenizer = HuggingFaceTokenizer(
-        tokenizer=AutoTokenizer.from_pretrained(TOKENIZER_MODEL),
+        tokenizer=AutoTokenizer.from_pretrained(TOKENIZER_MODEL), #using hf model as tokenizer ("intfloat/multilingual-e5-large-instruct")
         max_tokens=MAX_TOKENS,
     )
 
