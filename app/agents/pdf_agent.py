@@ -2,6 +2,7 @@ from app.services.llm import llm
 from app.utils.system_prompt import make_system_prompt
 from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
+from lancedb.rerankers import LinearCombinationReranker
 from dotenv import load_dotenv
 import lancedb
 
@@ -11,13 +12,14 @@ load_dotenv()
 
 # create pdf search tool
 @tool("search_vectorDB")
-def search_vectorDB(query: str, num_results: int = 12) -> str:
+def search_vectorDB(query: str) -> str:
     """
     Search the LanceDB 'docling' table for relevant context.
 
     IMPORTANT:
     Always pass the user's query EXACTLY as they wrote it.
     Do not paraphrase, summarize, or remove words.
+    Do not change the num_results.
     Args:
         query: The search query text.
         num_results: The number of top results to return.
@@ -27,7 +29,9 @@ def search_vectorDB(query: str, num_results: int = 12) -> str:
     db = lancedb.connect("./data/lancedb")
     table = db.open_table(name="docling")
 
-    results_df = table.search(query).limit(num_results).to_pandas()
+    table.create_fts_index("text", replace=True)
+    reranker = LinearCombinationReranker()
+    results_df = table.search(query, query_type="hybrid").rerank(reranker=reranker).limit(10).to_pandas()
     contexts=[]
 
     for _, row in results_df.iterrows():
@@ -39,7 +43,7 @@ def search_vectorDB(query: str, num_results: int = 12) -> str:
         if filename:
             source_parts.append(filename)
             
-        if page_numbers:
+        if page_numbers is not None and len(page_numbers) > 0:
             source_parts.append(f"p. {', '.join(str(p) for p in page_numbers)}")
         source = f"\nSource: {' - '.join(source_parts)}"
 

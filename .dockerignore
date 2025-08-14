@@ -1,0 +1,8 @@
+app/__pycache__/
+app/agents/__pycache__/
+app/services/__pycache__/
+app/utils/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env

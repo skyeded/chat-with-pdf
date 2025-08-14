@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  langgraph_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: langgraph_api
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app  # Remove in production for faster startup
+    env_file:
+      - .env
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4

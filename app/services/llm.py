@@ -1,16 +1,19 @@
 from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
 
-llm = init_chat_model(
-    model = "llama3.1:8b",
-    temperature = 0,
-    model_provider = "ollama"
-)
+load_dotenv()
 
 # llm = init_chat_model(
-#     model = "gemini-2.5-pro",
+#     model = "llama3.1:8b",
 #     temperature = 0,
-#     model_provider= "google_genai"
+#     model_provider = "ollama"
 # )
+
+llm = init_chat_model(
+    model = "gemini-2.5-flash",
+    temperature = 0,
+    model_provider= "google_genai"
+)
 
 # messages = [
 #     ("system",
