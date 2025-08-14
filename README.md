@@ -31,15 +31,11 @@
 - [Overview](#overview)
 - [Features](#features)
 - [Project Structure](#project-structure)
-    - [Project Index](#project-index)
 - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
     - [Usage](#usage)
-    - [Testing](#testing)
 - [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
 - [Acknowledgments](#acknowledgments)
 
 ---
@@ -70,6 +66,7 @@ cannot be found in the provided PDFs.
 
 
 <img src="./imgs_for_readme/agentic_arch.png" alt="RAG">
+
 ---
 
 ## Features
@@ -135,30 +132,26 @@ This project requires the following dependencies:
 - **Programming Language:** Python
 - **Package Manager:** Pip
 - **Container Runtime:** Docker
+- **API for LLM:** Google API
 
 ### Installation
 
-Build  from the source and intsall dependencies:
+Build  from the source and install dependencies:
 
 1. **Clone the repository:**
 
     ```sh
-    ❯ git clone ../
+    ❯ git clone https://github.com/skyeded/chat-with-pdf.git
     ```
 
 2. **Navigate to the project directory:**
 
     ```sh
-    ❯ cd 
+    ❯ cd ./chat-with-pdf
     ```
 
 3. **Install the dependencies:**
 
-<!-- SHIELDS BADGE CURRENTLY DISABLED -->
-	<!-- [![pip][pip-shield]][pip-link] -->
-	<!-- REFERENCE LINKS -->
-	<!-- [pip-shield]: https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white -->
-	<!-- [pip-link]: https://pypi.org/project/pip/ -->
 
 	**Using [pip](https://pypi.org/project/pip/):**
 
@@ -168,24 +161,64 @@ Build  from the source and intsall dependencies:
 
 ### Usage
 
+Modify your **[.env]()**:
+
+**Rename .env_example to .env and enter the required environmental variables:**
+
+(langsmith is optional)
+```sh
+GOOGLE_API_KEY=
+LANGSMITH_TRACING="true"
+LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=
+```
+
 Run the project with:
 
-**Using [docker](https://www.docker.com/):**
+**Using [docker](https://www.docker.com/) (build image and run):**
 ```sh
 docker-compose up --build
 ```
+
+(If already built image)
+```sh
+docker-compose up
+```
+
 **Using [uvicorn](https://pypi.org/project/pip/):**
 ```sh
 uvicorn app.main:app --reload
 ```
 
+Run the PDFs ingestion script by:
+
+1. Input documents into ```./data/papers```
+2. run bash ```python -m ./app/utils/memory_store```
+
 ---
 
 ## Roadmap
 
-- [X] **`Task 1`**: <strike>Implement feature one.</strike>
-- [ ] **`Task 2`**: Implement feature two.
-- [ ] **`Task 3`**: Implement feature three.
+- [X] **`Task 1`**: <strike>Create a assistant Chatbot that answer question based on context</strike>
+- [X] **`Task 2`**: <strike>The relevant context can be found inside the given PDFs (research papers)</strike>
+- [X] **`Task 3`**: <strike>If the question is out-of-scope the Chatbot will extract and retrieve information from the website</strike>
+- [X] **`Task 4`**: <strike>The user can also make the intent to search themselves</strike>
+- [X] **`Task 5`**: <strike>The Chatbot can handle ambiguous or vague questions</strike>
+
+**Bonus Points:**
+- [X] **`Task 1`**: <strike>Implement a Clarification Agent to detect vague or underspecified queries. </strike>
+- [ ] **`Task 2`**: Add a basic evaluation system (e.g., golden Q&A pairs, confidence scoring).
+
+**Real World Scenario:**
+- [X] **`Example 1`**: “How many examples are enough for good accuracy” 
+→ **“Enough” is vague—needs the dataset and the accuracy target**
+- [X] **`Example 2`**: “Which prompt template gave the highest zero-shot accuracy on Spider in Zhang et al. 
+(2024)?” → **Zhang et al. report that SimpleDDL-MD-Chat is the top zero-shot template (65–72 % EX across models)**
+- [X] **`Example 3`**: What execution accuracy does davinci-codex reach on Spider with the ‘Create Table + 
+Select 3’ prompt? → **Davinci-codex attains 67 % execution accuracy on the Spider dev set with that prompt style**
+- [X] **`Example 4`**: “What did OpenAI release this month?” 
+→ **The system should recognize this is not covered in the PDFs and search the web.**
 
 ---
 
