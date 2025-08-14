@@ -138,6 +138,67 @@ def get_next_node(last_message: BaseMessage, goto: str):
 ```
 ``` This function and functions for creating nodes can be found in (./app/agents/workflow.py) ``` 
 
+<h5> ❯ RAG Pipeline </h5>
+
+All of these snippets can be found in ```./app/utils```
+
+**Load PDFs**
+The snippets of a function below load and convert documents into text along with its metadata:
+```documents``` append all the textual data found from each PDF document.
+```
+from docling.document_converter import DocumentConverter
+
+try:
+    converter = DocumentConverter()
+    document = converter.convert(source=file_path)
+    documents.append(document.document)
+    logging.info(f"{pdf_file} successfully loaded and extended.")
+
+except Exception as e:
+    logging.error(f"Failed to load {pdf_file}: {str(e)}")
+```
+
+**Text Processing**
+The snippets of a function below process text from document using HybridChunker 
+into chunks along with its metadata:
+```
+chunker = HybridChunker(
+        tokenizer=tokenizer,
+        merge_peers=True
+    )
+
+    for document in documents:
+        document_fname = document.origin.filename
+        logging.info(f"Separating {document_fname} into chunks")
+        try:
+            chunk_iter = chunker.chunk(dl_doc=document)
+            chunks.extend(list(chunk_iter))
+        except Exception as e:
+            logging.error(f"Cannot separate {document_fname} into chunks: {str(e)}")
+
+        logging.info(f"Separated {document_fname} into {int(len(list(chunk_iter)))} chunks")
+
+    logging.info(f"Total number of chunks: {int(len(chunks))}")
+```
+
+**Store Memory as VectorDB**
+The snippets of a function below connect to db and create function for using hf embedding model:
+```
+db = lancedb.connect("data/lancedb")
+func = get_registry().get("huggingface").create(name="intfloat/multilingual-e5-large-instruct") #hf model
+```
+
+The snippets of a function below create class for storing text, vector and metadata into table:
+```
+class Chunks(LanceModel):
+    text: str = func.SourceField()
+    vector: Vector(func.ndims()) = func.VectorField()
+    metadata: ChunkMetadata
+	
+table = db.create_table("docling", schema=Chunks, mode="overwrite")
+table.add(processed_chunks)
+```
+
 ---
 
 ## Project Structure
@@ -236,6 +297,63 @@ Run the PDFs ingestion script by:
 1. Input documents into ```./data/papers```
 2. run bash ```python -m ./app/utils/memory_store```
 
+### Testing
+
+**[Postman]():**
+
+**To communicate with the chatbot:**
+
+<img src="./imgs_for_readme/postman_chat.png" alt="post_chat">
+<p></p>
+
+**To clear memory:**
+
+<img src="./imgs_for_readme/postman_clear.png" alt="post_clear">
+<p></p>
+
+
+**To show message history:**
+
+<img src="./imgs_for_readme/postman_mem.png" alt="post_show">
+<p></p>
+
+**[cURL]():**
+
+**To communicate with the chatbot:**
+``` sh
+curl -X 'POST' \
+  'http://0.0.0.0:8000/chat' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "topic": "Which prompt template gave the highest zero-shot accuracy on Spider in Zhang et al. (2024)?"
+}'
+```
+
+**To clear memory:**
+``` sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/clear_memory' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "clear_memory": "clear"
+}'
+```
+
+**To show messages history:**
+``` sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/clear_memory' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "clear_memory": "show"
+}'
+```
+
+**You can also use the built-in docs for FASTAPI by using this url: ```http://127.0.0.1:8000/docs```**
+
 ---
 
 ## Roadmap
@@ -264,24 +382,61 @@ Select 3’ prompt? → **Davinci-codex attains 67 % execution accuracy on the S
 
 ## Tradeoffs and Next Steps
 
-<h4> Tradeoffs </h4>
+<h4> _Tradeoffs_ </h4>
 
-<h4> Next Steps </h4>
+**LanceDB for vector database:**
+Pros:
 
----
+- Hybrid search built-in (vector + keyword via inverted indexes + reranker), good for “needle-in-a-haystack” PDFs.
+- Easy local setup; Arrow/Lance columnar storage keeps things fast on disk.
 
-## Acknowledgments
+Cons:
 
-- Credit `contributors`, `inspiration`, `references`, etc.
+- Not as scalable or in managed clouds as Pinecone, Weaviate, or Vertex Matching Engine; fewer turnkey ops features (autoscaling, replication).
+- Less community tooling.
 
-<div align="right">
+**Gemini-2.5-Flash for LLM:**
+Pros:
 
-[![][back-to-top]](#top)
+- Very low latency & cost for high-volume agents.
+- Great for fast tools/routing steps.
 
-</div>
+Cons:
 
+- Other models which are most costly are richer in tools usages and better context model
 
-[back-to-top]: https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square
+**Docling for document ingestion:**
+Pros:
 
+- AI-assisted PDF/Office parsing with layout.
+- Great for messy enterprise PDFs.
+- Works better with tables compare to traditional langchains document ingestion tools
 
----
+Cons:
+
+- More complex than traditional document ingestion tools
+- Heavier dependency stack than simple text extractors
+
+**intfloat/multilingual-e5-large-instruct as embedding model:**
+Pros:
+
+- Instruction-tuned for query-document asymmetry
+- Very strong retrieval
+
+Cons:
+- 512-token limit
+- Slower than smaller/base models (Heavy, not light-weighted)
+
+**NOTE: The project also uses DuckDuckGo search instead of Tavily because it's more compatible with Gemini LLMs (schema)**
+
+<h4> _Next Steps_ </h4>
+
+- Create suitable UI for easier accesibility.
+- Upgrade LLMs to a more costly models for more contextual understanding, better retrieval and refined agentic behaviour (and tool calling).
+- Switch to vector database that are cloud-based for scalability.
+- Improve chunking (switch to Agentic chunking?)
+- Find a more optimal embedding model for this use cases
+- Better routing prompts
+- Add text or info to which document, document pages, the information is extracted from. (Add proper metadata usage)
+- Create evaluation functions
+
