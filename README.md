@@ -389,7 +389,7 @@ Select 3’ prompt? → **Davinci-codex attains 67 % execution accuracy on the S
 - [X] **`Task 1`**: <strike>Make endpoints asynchronous and use non-blocking LLM calls.</strike>
 - [ ] **`Task 2`**: <strike>Remove internal state exposure from the "clear memory" endpoint </strike> and avoid hard-coded thread_id; accept a session_id.
 - [ ] **`Task 3`**: Replace prompt-string routing with robust tool selection (function-calling) or a classifier that decides PDF vs Web.
-- [ ] **`Task 4`**: Initialize DB connections/indices once at startup; avoid recreating them per request.
+- [X] **`Task 4`**: <strike>Initialize DB connections/indices once at startup; avoid recreating them per request.</strike>
 - [ ] **`Task 5`**: Move PDF ingestion to a separate CLI/command (not at import time).
 - [ ] **`Task 6`**: Tidy project structure (separate api/models/services/agents) and include full source (no placeholders), plus an updated README.
 ---
