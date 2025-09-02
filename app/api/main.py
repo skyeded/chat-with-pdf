@@ -32,7 +32,7 @@ class MInput(BaseModel):
     command: str = Field(description="Enter command for clear_memory or show messages history.")
     session_id: str | None = Field(default=None, description="Optional session ID for multi-session support.")
 
-@app.post("/new_session")
+@app.post("/session")
 def new_session(input: SessionInput):
     if input.command == "new":
         session_id = secrets.token_urlsafe(16)
@@ -42,8 +42,13 @@ def new_session(input: SessionInput):
         return {"status": "new session created...",
                 "session_id": session_id}
     elif input.command == "show":
+        if not all_sessions:
+            return {"status" : "there are currently no active sessions, use 'new' to create a new session..."}
+        
         return {"status": "list of all sessions available...",
                 "sessions" : all_sessions}
+    else:
+        return {"status" : "unknown command"}
 
 
 # for communicating with chatbot
@@ -51,17 +56,16 @@ def new_session(input: SessionInput):
 async def chat(input: APIInput):
     session_id = input.session_id
 
-    if session_id:
-        active_sessions["default"] = session_id
-    else:
-        if active_sessions["default"] is None:
-            print("Session ID not found!\nCreating new session id...")
-            session_id = secrets.token_urlsafe(16)
-            active_sessions["default"] = session_id
+    if not all_sessions:
+        return {"status" : "there are currently no active sessions, create a session first..."}
 
-            add_session(session_id)
-        else:
-            session_id = active_sessions["default"]
+    if session_id:
+        v_sessions = [v for v in all_sessions.values()]
+        if session_id not in v_sessions:
+            return {"status" : "this session id doesn't exist..."}
+    else:
+        return {"status": "please provide a session id..."}
+    
 
     response = await graph.ainvoke({"messages": [ #use await for asynchronous call, changed invoke to ainvoke (asynchronously invoke)
         {"role" : "user",
@@ -76,10 +80,20 @@ async def chat(input: APIInput):
 # for clearing memory or show message_history
 @app.post("/memory")
 async def memory(input: MInput):
+    if input.command not in ['clear', 'show', 'del']:
+        return {"status" : "unknown command"}
+    
     session_id = input.session_id
 
-    if not session_id:
-        return {"status": "Please input session id..."}
+    if not all_sessions:
+            return {"status" : "there are currently no active sessions, create a session first..."}
+
+    if session_id:
+        v_sessions = [v for v in all_sessions.values()]
+        if session_id not in v_sessions:
+            return {"status" : "this session id doesn't exist..."}
+    else:
+        return {"status": "please provide a session id..."}
     
     if input.command == "clear": # clear if {"input" : "clear"}
         clear_memory_func(checkpointer, session_id)
@@ -108,6 +122,13 @@ async def memory(input: MInput):
         return {"status" : "show message history",
                 "session_id" : session_id,
                 "state" : messages_to_show}
+    elif input.command == "del":
+        for k, v in all_sessions.items():
+            if input.session_id == v:
+                del all_sessions[k]
+                break
+
+        return {"status" : f"removed session, session id: {input.session_id}" }
     else:
         return {"status" : "unknown command"}
     
