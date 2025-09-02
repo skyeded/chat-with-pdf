@@ -1,7 +1,7 @@
-from app.services.llm import llm
+from app.models.llm_model import llm
 from langgraph.prebuilt import create_react_agent
 from app.agents.tools import search_vectorDB, search_tool
-from app.utils.system_prompt import make_system_prompt
+from app.agents.system_prompt import make_system_prompt
 from dotenv import load_dotenv
 
 load_dotenv()

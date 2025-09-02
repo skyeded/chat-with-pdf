@@ -1,9 +1,10 @@
+import argparse
 import lancedb
 from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector
 
-from app.utils.text_processing import text_processing
-from app.utils.pdf_loader import load_pdf
+from app.services.text_processing import text_processing
+from app.services.pdf_loader import load_pdf
 
 from typing import List
 
@@ -53,7 +54,15 @@ def embeddings_to_vectordb(chunks: List):
 
     return table
 
-pdf_directory = "./data/papers" # directory of papers
-documents = load_pdf(directory=pdf_directory) # load data from PDFs
-chunks = text_processing(documents=documents) # process text
-print(embeddings_to_vectordb(chunks=chunks).to_pandas()) # embed text into vector database
+def main(pdf_directory: str):
+    documents = load_pdf(directory=pdf_directory)
+    chunks = text_processing(documents=documents)
+    table = embeddings_to_vectordb(chunks=chunks)
+    print(table.to_pandas())
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Ingest PDFs into LanceDB")
+    parser.add_argument("--pdf-dir", type=str, required=True, help="Path to directory with PDFs")
+    args = parser.parse_args()
+
+    main(args.pdf_dir)

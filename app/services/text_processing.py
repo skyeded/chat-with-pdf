@@ -12,11 +12,6 @@ logging.basicConfig(
 TOKENIZER_MODEL="intfloat/multilingual-e5-large-instruct"
 MAX_TOKENS=512
 
-# to see chunks example
-def save_as_text(chunk: str):
-    with open('./app/example_data/chunks', 'w', encoding='utf-8') as f:
-        f.write(chunk)
-
 # function for storing chunks as list
 chunks = list()
 def text_processing(documents: list):
@@ -42,7 +37,5 @@ def text_processing(documents: list):
         logging.info(f"Separated {document_fname} into {int(len(list(chunk_iter)))} chunks")
 
     logging.info(f"Total number of chunks: {int(len(chunks))}")
-    # for chunk in chunks[:10]:
-    #     save_as_text(chunk.text)
 
     return chunks

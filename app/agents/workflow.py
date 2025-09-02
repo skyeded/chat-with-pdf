@@ -3,7 +3,7 @@ from langgraph.graph import MessagesState, END, StateGraph, START
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
-from app.services.llm import llm
+from app.models.llm_model import llm
 from app.agents.multiagent import multiagent
 from dotenv import load_dotenv
 
@@ -48,6 +48,7 @@ async def multiagent_node(
     state: MessagesState,
 ) -> Command[Literal[END]]:
     result = await multiagent.ainvoke(state)
+    print(result)
     return Command(update={"messages": result["messages"]}, goto=END)
 
 # function for clearning the memory
