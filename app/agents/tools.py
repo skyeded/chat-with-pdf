@@ -1,8 +1,6 @@
-from app.services.llm import llm
-from app.utils.system_prompt import make_system_prompt
-from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
 from lancedb.rerankers import LinearCombinationReranker
+from langchain_community.tools import DuckDuckGoSearchRun
 from dotenv import load_dotenv
 import lancedb
 
@@ -59,9 +57,5 @@ def search_vectorDB(query: str) -> str:
         contexts.append(f"{row['text']}{source}")
     
     return "\n\n".join(contexts)
-    
-# create pdf agent
-pdf_agent = create_react_agent(model=llm,
-                               tools=[search_vectorDB],
-                               prompt=make_system_prompt("You task is to search for information from pdf (stored as vectorDB) and display it."
-                                                         "Only go to web agent if the information could not be found from pdf files."))
+
+search_tool = DuckDuckGoSearchRun()

@@ -1,11 +1,10 @@
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState, END, StateGraph, START
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
-from app.agents.pdf_agent import pdf_agent
-from app.agents.web_agent import web_agent
-from app.agents.clarification_agent import clarification_agent
+from app.services.llm import llm
+from app.agents.multiagent import multiagent
 from dotenv import load_dotenv
 
 from typing import Literal
@@ -15,74 +14,41 @@ load_dotenv()
 # create short-term memory (for one session)
 checkpointer = InMemorySaver()
 
-# function for deciding whether to END or route to the next node
-def get_next_node(last_message: BaseMessage, goto: str):
-    if "FINAL ANSWER" in last_message.content:
-        # Any agent decided the work is done
-        return END
-    return goto
-
 # node containing clarification_agent
-def clarification_node(
-    state: MessagesState,
-) -> Command[Literal["search_pdf", "search_web", END]]:
-    result = clarification_agent.invoke(state)
-    if "pdf_agent" in result["messages"][-1].content:
-        goto = get_next_node(result["messages"][-1], "search_pdf")
-    elif "web_agent" in result["messages"][-1].content:
-        goto = get_next_node(result["messages"][-1], "search_web")
-    else:
-        goto = END
-    # wrap in a human message, as not all providers allow
-    # AI message at the last position of the input messages list
-    result["messages"][-1] = HumanMessage(
-        content=result["messages"][-1].content, name="clarify"
-    )
-    return Command(
-        update={
-            # share internal message history of research agent with other agents
-            "messages": result["messages"],
-        },
-        goto=goto,
-    )
-
-# node containing pdf_agent
-def pdf_node(
-    state: MessagesState,
-) -> Command[Literal["search_web", END]]:
-    result = pdf_agent.invoke(state)
-    goto = get_next_node(result["messages"][-1], "search_web")
-    # wrap in a human message, as not all providers allow
-    # AI message at the last position of the input messages list
-    result["messages"][-1] = HumanMessage(
-        content=result["messages"][-1].content, name="search_pdf"
-    )
-    return Command(
-        update={
-            # share internal message history of research agent with other agents
-            "messages": result["messages"],
-        },
-        goto=goto,
-    )
-
-# node containing web_agent
-def web_node(
+async def clarification_node(
     state: MessagesState,
 ) -> Command[Literal[END]]:
-    result = web_agent.invoke(state)
-    goto = END
-    # wrap in a human message, as not all providers allow
-    # AI message at the last position of the input messages list
-    result["messages"][-1] = HumanMessage(
-        content=result["messages"][-1].content, name="search_web"
-    )
-    return Command(
-        update={
-            # share internal message history of research agent with other agents
-            "messages": result["messages"],
-        },
-        goto=goto,
-    )
+    message = state["messages"][-1].content
+
+    prompt = f"""
+            You are an assistant whose job is to check if a user question is ambiguous.
+            If it is ambiguous, rewrite it as a clarification question.
+            If it is clear, reply only with 'CLEAR'.
+
+            For example, 'How many examples are enough for good accuracy?' → 
+            Depends on dataset complexity and target accuracy.
+            Please clarify the dataset size, type, and your accuracy goal.
+
+            User question: "{message}"
+            """
+    llm_response = await llm.apredict(prompt)
+
+    if llm_response.strip().upper() != "CLEAR":
+        clarification_msg = HumanMessage(content=llm_response.strip(), name="clarification")
+        return Command(
+            update={"messages": state["messages"] + [clarification_msg]},
+            goto=END
+        )
+
+    # Query is clear → pass messages to next node
+    return Command(update={"messages": state["messages"]}, goto="multiagent")
+
+# node containing pdf_agent
+async def multiagent_node(
+    state: MessagesState,
+) -> Command[Literal[END]]:
+    result = await multiagent.ainvoke(state)
+    return Command(update={"messages": result["messages"]}, goto=END)
 
 # function for clearning the memory
 def clear_memory_func(memory: BaseCheckpointSaver, thread_id: str) -> None:
@@ -108,8 +74,7 @@ def clear_memory_func(memory: BaseCheckpointSaver, thread_id: str) -> None:
 # create graph
 workflow = StateGraph(MessagesState)
 workflow.add_node("clarify", clarification_node)
-workflow.add_node("search_pdf", pdf_node)
-workflow.add_node("search_web", web_node)
+workflow.add_node("multiagent", multiagent_node)
 
 workflow.add_edge(START, "clarify")
 graph = workflow.compile(checkpointer=checkpointer) # add short_term memory to graph
