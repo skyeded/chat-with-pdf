@@ -6,3 +6,4 @@ app/utils/__pycache__
 data/lancedb/docling.lance/_indices/
 data/lancedb/docling.lance/_transactions/
 data/lancedb/docling.lance/_versions/
+app/test/data

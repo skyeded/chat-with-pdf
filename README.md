@@ -72,47 +72,95 @@ cannot be found in the provided PDFs.
 
 ## Features
 
-<h5> ❯ RAG Pipeline + PDF Agent - Search for information inside PDFs</h5>
+<h5> ❯ Multiagent + Tools - Search for information inside PDF(s) and on Website(s)</h5>
 
-``` Found in (./app/agents/pdf_agent.py) ``` 
+``` Found in (./app/agents/tools.py) ``` 
 
 ``` 
+# create pdf search tool
 @tool("search_vectorDB")
 def search_vectorDB(query: str) -> str:
-.....
-	return "\n\n".join(contexts)
+    """
+    Search the LanceDB 'docling' table for relevant context.
+
+    IMPORTANT:
+    Always pass the user's query EXACTLY as they wrote it.
+    Do not paraphrase, summarize, or remove words.
+    Do not change the num_results.
+    Args:
+        query: The search query text.
+        num_results: The number of top results to return.
+    Returns:
+        A string containing the top matching chunks.
+    """
+    results_df = ( table.search(query, query_type="hybrid")
+        .rerank(reranker=reranker)
+        .limit(10)
+        .to_pandas()
+    )
+
+    contexts=[]
+    # get and store metadata
+    for _, row in results_df.iterrows():
+        filename = row["metadata"]["filename"]
+        page_numbers = row["metadata"]["page_numbers"]
+        title = row["metadata"]["title"]
+
+        source_parts = []
+        if filename:
+            source_parts.append(filename)
+            
+        if page_numbers is not None and len(page_numbers) > 0:
+            source_parts.append(f"p. {', '.join(str(p) for p in page_numbers)}")
+        source = f"\nSource: {' - '.join(source_parts)}"
+
+        if title:
+            source += f"\nTitle: {title}"
+
+        contexts.append(f"{row['text']}{source}")
+    
+    return "\n\n".join(contexts)
 ``` 
 
-<h5> ❯ Web Search Tool + Web Agent - Search for informaton on website</h5>
+<h5> ❯ Web Search Tool </h5>
 
-``` Found in (./app/agents/web_agent.py) ``` 
+``` Found in (./app/agents/tools.py) ``` 
 
 ```search_tool = DuckDuckGoSearchRun()``` 
 
-``` 
-web_agent = 
-	create_react_agent(model=llm,
-	tools=[search_tool],
-	prompt=make_system_prompt(
-		"Your task is to search for information and display information found on website."
-		)
-	)
-```
+<h5> ❯ Clarification Node - Clarify ambiguous questions </h5>
 
-<h5> ❯ Clarification Agent - Clarify ambiguous questions </h5>
-
-``` Found in (./app/agents/clarification_agent.py) ``` 
+``` Found in (./app/agents/workflow.py) ``` 
 
 ```
-clarification_agent = create_react_agent(model=llm,
-	tools=[],
-	prompt="Your task is to detect questions that are ambiguous or vague."
-		"For example: if the user asked 'How many examples are enough for good accuracy?' is vague."
-		"\n\nUse pdf_agent first to search for information inside the pdf, respond 'pdf_agent'."
-		"If information are not found inside the pdf, use web_agent to search 
-		information on website instead, respond 'web_agent'."
-		"\n\nIf the question is too vague then ask them in a short sentence to provide more 
-		information or 'clarity' and prefix your response with FINAL ANSWER: ")
+# node containing clarification_agent
+async def clarification_node(
+    state: MessagesState,
+) -> Command[Literal[END]]:
+    message = state["messages"][-1].content
+
+    prompt = f"""
+            You are an assistant whose job is to check if a user question is ambiguous.
+            If it is ambiguous, rewrite it as a clarification question.
+            If it is clear, reply only with 'CLEAR'.
+
+            For example, 'How many examples are enough for good accuracy?' → 
+            Depends on dataset complexity and target accuracy.
+            Please clarify the dataset size, type, and your accuracy goal.
+
+            User question: "{message}"
+            """
+    llm_response = await llm.apredict(prompt)
+
+    if llm_response.strip().upper() != "CLEAR":
+        clarification_msg = HumanMessage(content=llm_response.strip(), name="clarification")
+        return Command(
+            update={"messages": state["messages"] + [clarification_msg]},
+            goto=END
+        )
+
+    # Query is clear → pass messages to next node
+    return Command(update={"messages": state["messages"]}, goto="multiagent")
 ```
 
 <h5> ❯ Lang Graph implementation </h5>
@@ -120,27 +168,14 @@ clarification_agent = create_react_agent(model=llm,
 
 **Description:**
 This graph is created based on the efficiency and use case based on goals listed by the assignments.
-The flow started by going through **clarify** node which contain **clarification_agent** for deciding whether to continue to the next node
-based on the clarity of the question.
+The flow started by going through **clarify** node which contain an inner llm for deciding whether to continue to the next node
+(multiagent_node for tool selection)based on the clarity of the question.
 
-**search_pdf** node contain **pdf_agent** which leverage the use of RAG tool to find relevant context from PDFs.
-**search_web** node contain **web_agent** which uses duckduckgo_search as a search tool for searching information relevant to the query on websites.
-
-If the **clarify** node detects that the question is out-of-scope or results are not found from searching inside PDFs it moves to **search_web** node for context.
-
-The function below is the core function to decide whether to move to the next node or END the traversal (and return the response):
-```
-def get_next_node(last_message: BaseMessage, goto: str):
-    if "FINAL ANSWER" in last_message.content:
-        # Any agent decided the work is done
-        return END
-    return goto
-```
-``` This function and functions for creating nodes can be found in (./app/agents/workflow.py) ``` 
+**multiagent** node contain **multiagent** (for PDF and Web Search) which leverage the use of RAG tool to find relevant context from PDFs and uses duckduckgo_search as a search tool for searching information relevant to the query on websites.
 
 <h5> ❯ RAG Pipeline </h5>
 
-All of these snippets can be found in ```./app/utils```
+All of these snippets can be found in ```./app/services```
 
 **Load PDFs**
 The snippets of a function below load and convert documents into text along with its metadata:
@@ -216,16 +251,38 @@ print(embeddings_to_vectordb(chunks=chunks).to_pandas()) # embed text into vecto
     │   ├── __init__.py
     │   ├── __pycache__
     │   ├── agents
-    │   ├── main.py
+    │   │   │── multiagent.py
+    │   │   │── system_prompt.py
+    │   │   │── tools.py
+    │   │   │── workflow.py
+    │   │   │── __init__.py
+    │   │   └── __pycache__
+    │   ├── api
+    │   │   │── main.py
+    │   │   │── __init__.py
+    │   │   └── __pycache__
+    │   ├── models
+    │   │   │── llm_model.py
+    │   │   │── __init__.py
+    │   │   └── __pycache__
     │   ├── services
-    │   ├── test
-    │   └── utils
+    │   │   │── ingest.py
+    │   │   │── pdf_loader.py
+    │   │   │── text_processing.py
+    │   │   │── __init__.py
+    │   │   └── __pycache__
+    │   └── test
+    │       │── __init__.py
+    │       └── __pycache__
     ├── data
     │   ├── lancedb
     │   └── papers
+    ├── .env
     ├── docker-compose.yml
     ├── dockerfile
+    ├── .dockerignore
     ├── README.md
+    ├── .gitignore
     └── requirements.txt
 ```
 
@@ -299,10 +356,34 @@ docker-compose up
 uvicorn app.main:app --reload
 ```
 
-Run the PDFs ingestion script by:
+Run the PDFs **ingestion** script by:
 
 1. Input documents into ```./data/papers```
-2. run bash ```python -m ./app/utils/memory_store```
+2. run bash ```python -m app.services.ingest --pdf-dir ./data/papers``` 
+
+OR
+
+run bash ```python -m app.services.ingest --pdf-dir <your PDFS dir>``` 
+
+**Command** for API calls:-
+
+**/session**:
+-   { "**command**" : "new" } → To create new session (get session id)
+-   { "**command**" : "show" } → To list or show all session (and session id)
+
+**/chat**: 
+-   { "**topic**" : "When was Microsoft found?",
+      "**session_id**" : your_session_id } → To communicate with chatbot
+
+**/memory**: 
+-   { "**command**" : "clear",
+      "**session_id**" : your_session_id } → To clear memory/message history for specified session
+-   { "**command**" : "show",
+      "**session_id**" : your_session_id } → To show message history for specified session
+-   { "**command**" : "del",
+      "**session_id**" : your_session_id } → To delete the specified session
+
+*NOTE:* **To communicate with the chatbot and manipulate the memory you are required to input a session id (get session id by typing "new" command for /session as mentioned above)**
 
 ### Testing
 
@@ -391,12 +472,12 @@ Select 3’ prompt? → **Davinci-codex attains 67 % execution accuracy on the S
 - [X] **`Task 3`**: <strike>Replace prompt-string routing with robust tool selection (function-calling) or a classifier that decides PDF vs Web.</strike>
 - [X] **`Task 4`**: <strike>Initialize DB connections/indices once at startup; avoid recreating them per request.</strike>
 - [X] **`Task 5`**: <strike>Move PDF ingestion to a separate CLI/command (not at import time).</strike>
-- [X] **`Task 6`**: <strike>Tidy project structure (separate api/models/services/agents)</strike> and include full source (no placeholders), plus an updated README.
+- [ ] **`Task 6`**: <strike>Tidy project structure (separate api/models/services/agents)</strike> and include full source (no placeholders), plus an updated README.
 ---
 
 ## Tradeoffs and Next Steps
 
-<h4> _Tradeoffs_ </h4>
+<h4> Tradeoffs </h4>
 
 **LanceDB for vector database:**
 Pros:
@@ -443,7 +524,7 @@ Cons:
 
 **NOTE: The project also uses DuckDuckGo search instead of Tavily because it's more compatible with Gemini LLMs (schema)**
 
-<h4> _Next Steps_ </h4>
+<h4> Next Steps </h4>
 
 - Create suitable UI for easier accesibility.
 - Upgrade LLMs to a more costly models for more contextual understanding, better retrieval and refined agentic behaviour (and tool calling).
