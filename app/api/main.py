@@ -1,18 +1,30 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-import inspect
 from app.services.workflow import graph, clear_memory_func, checkpointer
 from pprint import pprint
+import inspect
 import secrets
+import redis
 
 app = FastAPI()
-active_sessions = {"default": None}
-all_sessions = {} # list all sessions created
+# active_sessions = {"default": None}
+# all_sessions = {} # list all sessions created
 
-# for adding session to all sessions
-def add_session(session_id: str):
-    session_name = f"session_{len(all_sessions) + 1}"
-    all_sessions[session_name] = session_id
+# use redis for shared session ID between all workers
+try:
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    redis_client.ping() # Check if the connection is successful
+    print("Successfully connected to Redis.")
+except redis.exceptions.ConnectionError as e:
+    print(f"Could not connect to Redis: {e}")
+    exit()
+
+SESSION_ID = "session_id"
+
+# for adding session to all sessions (DEPRECATED)
+# def add_session(session_id: str):
+#     session_name = f"session_{len(all_sessions) + 1}"
+#     all_sessions[session_name] = session_id
 
 # initialize endpoint
 @app.get("/")
@@ -36,17 +48,25 @@ class MInput(BaseModel):
 def new_session(input: SessionInput):
     if input.command == "new":
         session_id = secrets.token_urlsafe(16)
-        active_sessions["default"] = session_id
 
-        add_session(session_id)
+        # add_session(session_id)
+        redis_client.sadd(SESSION_ID, session_id)
         return {"status": "new session created...",
                 "session_id": session_id}
     elif input.command == "show":
+        # get all sessions
+        all_sessions = list(redis_client.smembers(SESSION_ID))
+
+        sessions_dict = {
+            f"session_{i+1}": session_id 
+            for i, session_id in enumerate(all_sessions)
+        }
+
         if not all_sessions:
             return {"status" : "there are currently no active sessions, use 'new' to create a new session..."}
         
         return {"status": "list of all sessions available...",
-                "sessions" : all_sessions}
+                "sessions" : sessions_dict}
     else:
         return {"status" : "unknown command"}
 
@@ -56,11 +76,13 @@ def new_session(input: SessionInput):
 async def chat(input: APIInput):
     session_id = input.session_id
 
+    all_sessions = list(redis_client.smembers(SESSION_ID))
+
     if not all_sessions:
         return {"status" : "there are currently no active sessions, create a session first..."}
 
     if session_id:
-        v_sessions = [v for v in all_sessions.values()]
+        v_sessions = [v for v in all_sessions]
         if session_id not in v_sessions:
             return {"status" : "this session id doesn't exist..."}
     else:
@@ -83,13 +105,15 @@ async def memory(input: MInput):
     if input.command not in ['clear', 'show', 'del']:
         return {"status" : "unknown command"}
     
+    all_sessions = list(redis_client.smembers(SESSION_ID))
+    
     session_id = input.session_id
 
     if not all_sessions:
             return {"status" : "there are currently no active sessions, create a session first..."}
 
     if session_id:
-        v_sessions = [v for v in all_sessions.values()]
+        v_sessions = [v for v in all_sessions]
         if session_id not in v_sessions:
             return {"status" : "this session id doesn't exist..."}
     else:
@@ -123,11 +147,7 @@ async def memory(input: MInput):
                 "session_id" : session_id,
                 "state" : messages_to_show}
     elif input.command == "del":
-        for k, v in all_sessions.items():
-            if input.session_id == v:
-                del all_sessions[k]
-                break
-
+        redis_client.srem(SESSION_ID, session_id)
         return {"status" : f"removed session, session id: {input.session_id}" }
     else:
         return {"status" : "unknown command"}
