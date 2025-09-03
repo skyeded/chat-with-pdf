@@ -625,7 +625,17 @@ run bash ```python -m app.services.ingest --pdf-dir <your PDFS dir>```
 
 **[Postman]():**
 
-**To communicate with the chatbot:**
+**To create a new session:**
+
+<img src="./imgs_for_readme/postman_new.png" alt="post_chat">
+<p></p>
+
+**To show all sessions:**
+
+<img src="./imgs_for_readme/postman_show.png" alt="post_chat">
+<p></p>
+
+**To communicate with the chatbot:** *(session_id required)*
 
 <img src="./imgs_for_readme/postman_chat.png" alt="post_chat">
 <p></p>
@@ -641,7 +651,25 @@ run bash ```python -m app.services.ingest --pdf-dir <your PDFS dir>```
 <img src="./imgs_for_readme/postman_mem.png" alt="post_show">
 <p></p>
 
-**[cURL]():**
+**To delete a session:**
+
+<img src="./imgs_for_readme/postman_del.png" alt="post_show">
+<p></p>
+
+
+**[cURL](Examples):**
+
+**To create new sessions:**
+
+``` sh
+curl -X 'POST' \
+  'http://localhost:8000/session' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "command": "new"
+}'
+```
 
 **To communicate with the chatbot:**
 ``` sh
@@ -650,33 +678,24 @@ curl -X 'POST' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
-  "topic": "Which prompt template gave the highest zero-shot accuracy on Spider in Zhang et al. (2024)?"
+  "topic": "Which prompt template gave the highest zero-shot accuracy on Spider in Zhang et al. (2024)?",
+  "session_id": your_session_id
 }'
 ```
 
 **To clear memory:**
 ``` sh
 curl -X 'POST' \
-  'http://127.0.0.1:8000/clear_memory' \
+  'http://127.0.0.1:8000/memory' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
-  "clear_memory": "clear"
+  "command": "clear",
+  "session_id": your_session_id
 }'
 ```
 
-**To show messages history:**
-``` sh
-curl -X 'POST' \
-  'http://127.0.0.1:8000/clear_memory' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: application/json' \
-  -d '{
-  "clear_memory": "show"
-}'
-```
-
-**You can also use the built-in docs for FASTAPI by using this url: ```http://127.0.0.1:8000/docs```**
+**You can also use the built-in docs for FASTAPI by using this url: ```http://127.0.0.1:8000/docs```** **(recommended)**
 
 ---
 
