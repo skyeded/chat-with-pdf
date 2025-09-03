@@ -235,10 +235,18 @@ table.add(processed_chunks)
 ```
 All the functions are then called to create the complete pipeline:
 ```
-pdf_directory = "./data/papers" # directory of papers
-documents = load_pdf(directory=pdf_directory) # load data from PDFs
-chunks = text_processing(documents=documents) # process text
-print(embeddings_to_vectordb(chunks=chunks).to_pandas()) # embed text into vector database
+def main(pdf_directory: str):
+    documents = load_pdf(directory=pdf_directory)
+    chunks = text_processing(documents=documents)
+    table = embeddings_to_vectordb(chunks=chunks)
+    print(table.to_pandas())
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Ingest PDFs into LanceDB")
+    parser.add_argument("--pdf-dir", type=str, required=True, help="Path to directory with PDFs")
+    args = parser.parse_args()
+
+    main(args.pdf_dir)
 ```
 
 ---
