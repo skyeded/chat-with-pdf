@@ -1,8 +1,10 @@
 .env
 app/test/test_data
 app/__pycache__
+app/api/__pycache__
+app/models/__pycache__
 app/agents/__pycache__
-app/utils/__pycache__
+app/services/__pycache__
 data/lancedb/docling.lance/_indices/
 data/lancedb/docling.lance/_transactions/
 data/lancedb/docling.lance/_versions/

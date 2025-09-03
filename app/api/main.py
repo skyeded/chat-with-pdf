@@ -11,13 +11,21 @@ app = FastAPI()
 # all_sessions = {} # list all sessions created
 
 # use redis for shared session ID between all workers
-try:
-    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-    redis_client.ping() # Check if the connection is successful
-    print("Successfully connected to Redis.")
-except redis.exceptions.ConnectionError as e:
-    print(f"Could not connect to Redis: {e}")
-    exit()
+def get_redis_client():
+    # Try localhost first
+    for host in ["localhost", "redis"]:
+        try:
+            client = redis.Redis(host=host, port=6379, db=0, decode_responses=True)
+            client.ping()
+            print(f"Successfully connected to Redis at {host}:6379.")
+            return client
+        except redis.exceptions.ConnectionError:
+            print(f"Could not connect to Redis at {host}:6379, trying next...")
+    # If both fail
+    raise ConnectionError("Could not connect to Redis at localhost or redis.")
+
+# Usage
+redis_client = get_redis_client()
 
 SESSION_ID = "session_id"
 
