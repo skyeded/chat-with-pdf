@@ -575,6 +575,17 @@ LANGSMITH_API_KEY=
 LANGSMITH_PROJECT=
 ```
 
+Run the PDFs **ingestion** script by: 
+
+1. Input documents into ```./data/papers```
+2. run bash ```python -m app.services.ingest --pdf-dir ./data/papers``` 
+
+OR
+
+run bash ```python -m app.services.ingest --pdf-dir <you PDFS dir>``` 
+
+***NOTE: Please run the __PDFs ingestion__ first since I removed transactions and versions due to bloated folders***
+
 Run the project with:
 
 **Using [docker](https://www.docker.com/) (build image and run):**
@@ -591,15 +602,6 @@ docker-compose up
 ```sh
 uvicorn app.main:app --reload
 ```
-
-Run the PDFs **ingestion** script by:
-
-1. Input documents into ```./data/papers```
-2. run bash ```python -m app.services.ingest --pdf-dir ./data/papers``` 
-
-OR
-
-run bash ```python -m app.services.ingest --pdf-dir <your PDFS dir>``` 
 
 **Command** for API calls:-
 
