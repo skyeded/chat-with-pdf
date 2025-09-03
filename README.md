@@ -120,6 +120,8 @@ def new_session(input: SessionInput):
 
 ``` Found in (./app/api/main.py) ``` 
 
+Is defined as **asynchronous** function and uses ainvoke for **non-blocking** llm calls.
+
 ```
 # for communicating with chatbot
 @app.post("/chat")
