@@ -116,6 +116,102 @@ def new_session(input: SessionInput):
         return {"status" : "unknown command"}
 ```
 
+<h5> ❯ Chat </h5>
+
+``` Found in (./app/api/main.py) ``` 
+
+```
+# for communicating with chatbot
+@app.post("/chat")
+async def chat(input: APIInput):
+    session_id = input.session_id
+
+    if not all_sessions:
+        return {"status" : "there are currently no active sessions, create a session first..."}
+
+    if session_id:
+        v_sessions = [v for v in all_sessions.values()]
+        if session_id not in v_sessions:
+            return {"status" : "this session id doesn't exist..."}
+    else:
+        return {"status": "please provide a session id..."}
+    
+
+    response = await graph.ainvoke({"messages": [ #use await for asynchronous call, changed invoke 
+                                                                to ainvoke (asynchronously invoke)
+        {"role" : "user",
+         "content" : input.topic},
+    ]},
+    config={"recursion_limit" : 25, "thread_id" : session_id})
+    print("Current Session ID: ", session_id)
+
+    return {"response" : response["messages"][-1].content.split("FINAL ANSWER: ")[-1],
+            "session_id" : session_id}
+```
+
+<h5> ❯ Memory </h5>
+
+``` Found in (./app/api/main.py) ``` 
+
+Can **clear**, **show** and **delete** memory based on session id
+
+```
+# for clearing memory or show message_history
+@app.post("/memory")
+async def memory(input: MInput):
+    if input.command not in ['clear', 'show', 'del']:
+        return {"status" : "unknown command"}
+    
+    session_id = input.session_id
+
+    if not all_sessions:
+            return {"status" : "there are currently no active sessions, create a session first..."}
+
+    if session_id:
+        v_sessions = [v for v in all_sessions.values()]
+        if session_id not in v_sessions:
+            return {"status" : "this session id doesn't exist..."}
+    else:
+        return {"status": "please provide a session id..."}
+    
+    if input.command == "clear": # clear if {"input" : "clear"}
+        clear_memory_func(checkpointer, session_id)
+        return {"status" : "memory cleared"}
+    elif input.command == "show": # show if {"input" : "show"}
+        config = {"configurable": {"thread_id": session_id}}
+        state_snapshot = graph.get_state(config)
+
+        pprint(state_snapshot.values)
+
+        messages_to_show=[]
+        values = getattr(state_snapshot, "values", {})
+        if values and "messages" in values:
+            for msg in values["messages"]:
+                # LangGraph stores HumanMessage / AIMessage / ToolMessage etc.
+                msg_type = msg.__class__.__name__.lower()
+
+                # Keep only human + ai
+                if msg_type in ["humanmessage", "aimessage"]:
+                    if msg.content:
+                        messages_to_show.append({
+                            "role": "user" if msg_type == "humanmessage" else "assistant",
+                            "content": msg.content.strip().split("FINAL ANSWER: ")[-1]
+                        })
+
+        return {"status" : "show message history",
+                "session_id" : session_id,
+                "state" : messages_to_show}
+    elif input.command == "del":
+        for k, v in all_sessions.items():
+            if input.session_id == v:
+                del all_sessions[k]
+                break
+
+        return {"status" : f"removed session, session id: {input.session_id}" }
+    else:
+        return {"status" : "unknown command"}
+```
+
 <h5> ❯ RAG Pipeline </h5>
 
 All of these snippets can be found in ```./app/services```
@@ -612,7 +708,7 @@ Select 3’ prompt? → **Davinci-codex attains 67 % execution accuracy on the S
 - [X] **`Task 3`**: <strike>Replace prompt-string routing with robust tool selection (function-calling) or a classifier that decides PDF vs Web.</strike>
 - [X] **`Task 4`**: <strike>Initialize DB connections/indices once at startup; avoid recreating them per request.</strike>
 - [X] **`Task 5`**: <strike>Move PDF ingestion to a separate CLI/command (not at import time).</strike>
-- [ ] **`Task 6`**: <strike>Tidy project structure (separate api/models/services/agents)</strike> and include full source (no placeholders), plus an updated README.
+- [X] **`Task 6`**: <strike>Tidy project structure (separate api/models/services/agents) and include full source (no placeholders), plus an updated README.</strike>
 ---
 
 ## Tradeoffs and Next Steps
