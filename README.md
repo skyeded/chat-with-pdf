@@ -661,7 +661,8 @@ uvicorn app.main:app --reload
 <p></p>
 
 
-**[cURL](Examples):**
+**[cURL](Examples):** 
+**(Examples)**
 
 **To create new sessions:**
 
