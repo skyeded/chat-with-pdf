@@ -72,11 +72,17 @@ cannot be found in the provided PDFs.
 ## Features
 
 #### (v2.0 brief update summary):
+
 ➕ Change 'chat' function to **async**, use 'ainvoke' to asynchronously invoke to **avoid blocking** llm calls.
+
 ➕ Use robust **tool-calling** instead of 'string-prompt' routing, removed agent nodes and combine it into **multiagent** node.
+
 ➕ Change from **hard-coded** (fixed) thread into using **dynamic** session id, created new API endpoint to start new session.
+
 ➕ Remove internal state summary exposure, **but kept only message history and role**.
+
 ➕ Moved database connection out of tool function to **avoid** recreating indices.
+
 ➕ Tidy up project structure.
 
 <h5> ❯ Sessions </h5>
