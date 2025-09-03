@@ -37,7 +37,6 @@
     - [Usage](#usage)
 - [Roadmap](#roadmap)
 - [Tradeoffs & Next Steps](#tradeoffs-and-next-steps)
-- [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -72,114 +71,59 @@ cannot be found in the provided PDFs.
 
 ## Features
 
-<h5> ❯ Multiagent + Tools - Search for information inside PDF(s) and on Website(s)</h5>
+#### (v2.0 brief update summary):
+➕ Change 'chat' function to **async**, use 'ainvoke' to asynchronously invoke to **avoid blocking** llm calls.
+➕ Use robust **tool-calling** instead of 'string-prompt' routing, removed agent nodes and combine it into **multiagent** node.
+➕ Change from **hard-coded** (fixed) thread into using **dynamic** session id, created new API endpoint to start new session.
+➕ Remove internal state summary exposure, **but kept only message history and role**.
+➕ Moved database connection out of tool function to **avoid** recreating indices.
+➕ Tidy up project structure.
 
-``` Found in (./app/agents/tools.py) ``` 
+<h5> ❯ Sessions </h5>
 
-``` 
-# create pdf search tool
-@tool("search_vectorDB")
-def search_vectorDB(query: str) -> str:
-    """
-    Search the LanceDB 'docling' table for relevant context.
+``` Found in (./app/api/main.py) ``` 
 
-    IMPORTANT:
-    Always pass the user's query EXACTLY as they wrote it.
-    Do not paraphrase, summarize, or remove words.
-    Do not change the num_results.
-    Args:
-        query: The search query text.
-        num_results: The number of top results to return.
-    Returns:
-        A string containing the top matching chunks.
-    """
-    results_df = ( table.search(query, query_type="hybrid")
-        .rerank(reranker=reranker)
-        .limit(10)
-        .to_pandas()
-    )
+Session are ***required*** for communicating with Chatbot.
 
-    contexts=[]
-    # get and store metadata
-    for _, row in results_df.iterrows():
-        filename = row["metadata"]["filename"]
-        page_numbers = row["metadata"]["page_numbers"]
-        title = row["metadata"]["title"]
-
-        source_parts = []
-        if filename:
-            source_parts.append(filename)
-            
-        if page_numbers is not None and len(page_numbers) > 0:
-            source_parts.append(f"p. {', '.join(str(p) for p in page_numbers)}")
-        source = f"\nSource: {' - '.join(source_parts)}"
-
-        if title:
-            source += f"\nTitle: {title}"
-
-        contexts.append(f"{row['text']}{source}")
-    
-    return "\n\n".join(contexts)
-``` 
-
-<h5> ❯ Web Search Tool </h5>
-
-``` Found in (./app/agents/tools.py) ``` 
-
-```search_tool = DuckDuckGoSearchRun()``` 
-
-<h5> ❯ Clarification Node - Clarify ambiguous questions </h5>
-
-``` Found in (./app/agents/workflow.py) ``` 
+All sessions that are created through commands are **stored** (can be viewed) until they are **deleted**.
 
 ```
-# node containing clarification_agent
-async def clarification_node(
-    state: MessagesState,
-) -> Command[Literal[END]]:
-    message = state["messages"][-1].content
+active_sessions = {"default": None}
+all_sessions = {} # list all sessions created
 
-    prompt = f"""
-            You are an assistant whose job is to check if a user question is ambiguous.
-            If it is ambiguous, rewrite it as a clarification question.
-            If it is clear, reply only with 'CLEAR'.
-
-            For example, 'How many examples are enough for good accuracy?' → 
-            Depends on dataset complexity and target accuracy.
-            Please clarify the dataset size, type, and your accuracy goal.
-
-            User question: "{message}"
-            """
-    llm_response = await llm.apredict(prompt)
-
-    if llm_response.strip().upper() != "CLEAR":
-        clarification_msg = HumanMessage(content=llm_response.strip(), name="clarification")
-        return Command(
-            update={"messages": state["messages"] + [clarification_msg]},
-            goto=END
-        )
-
-    # Query is clear → pass messages to next node
-    return Command(update={"messages": state["messages"]}, goto="multiagent")
+# for adding session to all sessions
+def add_session(session_id: str):
+    session_name = f"session_{len(all_sessions) + 1}"
+    all_sessions[session_name] = session_id
 ```
+```
+@app.post("/session")
+def new_session(input: SessionInput):
+    if input.command == "new":
+        session_id = secrets.token_urlsafe(16)
+        active_sessions["default"] = session_id
 
-<h5> ❯ Lang Graph implementation </h5>
-<img src="./imgs_for_readme/gen_graph.png" alt="gen">
-
-**Description:**
-This graph is created based on the efficiency and use case based on goals listed by the assignments.
-The flow started by going through **clarify** node which contain an inner llm for deciding whether to continue to the next node
-(multiagent_node for tool selection)based on the clarity of the question.
-
-**multiagent** node contain **multiagent** (for PDF and Web Search) which leverage the use of RAG tool to find relevant context from PDFs and uses duckduckgo_search as a search tool for searching information relevant to the query on websites.
+        add_session(session_id)
+        return {"status": "new session created...",
+                "session_id": session_id}
+    elif input.command == "show":
+        if not all_sessions:
+            return {"status" : "there are currently no active sessions, use 'new' to create a new session..."}
+        
+        return {"status": "list of all sessions available...",
+                "sessions" : all_sessions}
+    else:
+        return {"status" : "unknown command"}
+```
 
 <h5> ❯ RAG Pipeline </h5>
 
 All of these snippets can be found in ```./app/services```
 
 **Load PDFs**
+```./app/services/pdf_loader.py```
 The snippets of a function below load and convert documents into text along with its metadata:
-```documents``` append all the textual data found from each PDF document.
+```documents``` append all the textual data (as well as **tabular data**) found from each PDF document.
 ```
 from docling.document_converter import DocumentConverter
 
@@ -194,8 +138,8 @@ except Exception as e:
 ```
 
 **Text Processing**
-The snippets of a function below process text from document using HybridChunker 
-into chunks along with its metadata:
+```./app/services/text_processing.py```
+The snippets of a function below process text from document using **HybridChunker** (tokenization-aware refinements on top of document-based hierarchical chunking) into chunks along with its metadata:
 ```
 chunker = HybridChunker(
         tokenizer=tokenizer,
@@ -217,6 +161,7 @@ chunker = HybridChunker(
 ```
 
 **Store Memory as VectorDB**
+```./app/services/ingest.py```
 The snippets of a function below connect to db and create function for using hf embedding model:
 ```
 db = lancedb.connect("data/lancedb")
@@ -249,6 +194,193 @@ if __name__ == "__main__":
     main(args.pdf_dir)
 ```
 
+<h5> ❯ Multiagent + Tools - Search for information inside PDF(s) and on Website(s)</h5>
+
+``` Found in (./app/agents/tools.py) ``` 
+
+**PDF Tools:**
+
+**search_vectorDB** tool takes a user query and searches it in the existing table of LanceDB for relevant context using **hybrid search**. It extracts texts plus metadata and formats them into readable chunks with sources. Finally, it returns all formatted contexts as a single string.
+
+With the combination of reranker, it improves **querying performances** and **context accuracy**.
+
+``` 
+# create pdf search tool
+@tool("search_vectorDB")
+def search_vectorDB(query: str) -> str:
+    """
+    Search the LanceDB 'docling' table for relevant context.
+
+    IMPORTANT:
+    Always pass the user's query EXACTLY as they wrote it.
+    Do not paraphrase, summarize, or remove words.
+    Do not change the num_results.
+    Args:
+        query: The search query text.
+        num_results: The number of top results to return.
+    Returns:
+        A string containing the top matching chunks.
+    """
+    results_df = (table.search(query, query_type="hybrid")
+        .rerank(reranker=reranker)
+        .limit(10)
+        .to_pandas()
+    )
+
+    contexts=[]
+    # get and store metadata
+    for _, row in results_df.iterrows():
+        filename = row["metadata"]["filename"]
+        page_numbers = row["metadata"]["page_numbers"]
+        title = row["metadata"]["title"]
+
+        source_parts = []
+        if filename:
+            source_parts.append(filename)
+            
+        if page_numbers is not None and len(page_numbers) > 0:
+            source_parts.append(f"p. {', '.join(str(p) for p in page_numbers)}")
+        source = f"\nSource: {' - '.join(source_parts)}"
+
+        if title:
+            source += f"\nTitle: {title}"
+
+        contexts.append(f"{row['text']}{source}")
+    
+    return "\n\n".join(contexts)
+``` 
+
+**Web Search Tool:**
+
+We use DuckDuckGo Search because it’s free, requires no API key, and provides reliable general-purpose search results without usage limits. Also gemini schema is compatible with DDGS.
+
+```
+# create web search tool
+search_tool = DuckDuckGoSearchRun(
+    name="duckduckgo_search",
+    description="Use this tool to search the web with DuckDuckGo and return the most relevant results."
+``` 
+
+**Multiagent:**
+
+``` Found in (./app/agents/agents.py) ``` 
+
+Multi Agent uses robust **tool-calling** by binding itself with two tools for LLM to semantically decide based on the topic of user query.
+
+```
+multiagent = create_react_agent(
+    model=llm,
+    tools=[search_vectorDB, search_tool],
+    prompt=make_system_prompt("You are an assistant with access to two tools:\n"
+        "- search_vectorDB: for searching uploaded PDFs.\n"
+        "- search_web: if the answer cannot be found in PDFs.\n"
+        "Always try PDFs first before using the web.\n"
+        "If the user request to explicitly use web search then search the web."
+))
+```
+
+**Web Agent:**
+
+``` Found in (./app/agents/agents.py) ``` 
+
+A separate **web agent** for **web agent node**, acts as a **fallback** incase information are not found inside PDFs.
+
+```
+web_agent = create_react_agent(
+    model=llm,
+    tools=[search_tool],
+    prompt=make_system_prompt(
+        "You  are to search for relevant context on website using the search tool."
+    )
+)
+```
+
+<h5> ❯ Clarification Node - Clarify ambiguous questions </h5>
+
+``` Found in (./app/services/workflow.py) ``` 
+
+```
+# node containing clarification_agent
+async def clarification_node(
+    state: MessagesState,
+) -> Command[Literal[END]]:
+    message = state["messages"][-1].content
+
+    prompt = f"""
+            You are an assistant whose job is to check if a user question is ambiguous.
+            If it is ambiguous, rewrite it as a clarification question.
+            If it is clear, reply only with 'CLEAR'.
+
+            For example, 'How many examples are enough for good accuracy?' → 
+            Depends on dataset complexity and target accuracy.
+            Please clarify the dataset size, type, and your accuracy goal.
+
+            User question: "{message}"
+            """
+    llm_response = await llm.apredict(prompt)
+
+    if llm_response.strip().upper() != "CLEAR":
+        clarification_msg = HumanMessage(content=llm_response.strip(), name="clarification")
+        return Command(
+            update={"messages": state["messages"] + [clarification_msg]},
+            goto=END
+        )
+
+    # Query is clear → pass messages to next node
+    return Command(update={"messages": state["messages"]}, goto="multiagent")
+```
+
+<h5> ❯ Multiagent Node - Tool-calling </h5>
+
+``` Found in (./app/services/workflow.py) ``` 
+```
+# node containing pdf_agent
+async def multiagent_node(
+    state: MessagesState,
+) -> Command[Literal[END]]:
+    result = await multiagent.ainvoke(state)
+
+    ai_message = result.get("messages", [])
+    user_message = state["messages"][-1].content
+
+    prompt = f"""
+        You are an assistant whose job is to check if the following content is relevant
+        to the user's query. Reply only 'RELEVANT' or 'NOT RELEVANT'.
+
+        User query: "{user_message}"
+        Agent response: "{ai_message[-1].content if ai_message else ''}"
+    """
+
+    relevance = await llm.ainvoke(prompt)
+
+    if relevance.strip().upper() != "RELEVANT":
+        # LLM predicts not relevant → fallback to web
+        return Command(update={"messages": state["messages"]}, goto="web_agent")
+
+    return Command(update={"messages": result["messages"]}, goto=END)
+```
+
+```
+# node containing web_agent
+async def web_agent_node(
+    state: MessagesState,
+) -> Command[Literal[END]]:
+    result = await web_agent.ainvoke(state)
+    return Command(update={"messages": result["messages"]}, goto=END)
+```
+
+<h5> ❯ Lang Graph implementation </h5>
+<img src="./imgs_for_readme/gen_graph.png" alt="gen">
+
+**Description:**
+This graph is created based on the efficiency and use case based on goals listed by the assignments.
+The flow started by going through **clarify** node which contain an inner llm for deciding whether to continue to the next node
+(multiagent_node for tool selection) based on the clarity of the question.
+
+**multiagent** node contain **multiagent** (for PDF and Web Search) which leverage the use of RAG tool to find relevant context from PDFs and uses duckduckgo_search as a search tool for searching information relevant to the query on websites.
+
+**web_agent** node contain **web_agent** acts as a **secondary search tool or a fallback node** incase information are not found in PDFs at the multiagent node.
+
 ---
 
 ## Project Structure
@@ -259,10 +391,9 @@ if __name__ == "__main__":
     │   ├── __init__.py
     │   ├── __pycache__
     │   ├── agents
-    │   │   │── multiagent.py
+    │   │   │── agents.py
     │   │   │── system_prompt.py
     │   │   │── tools.py
-    │   │   │── workflow.py
     │   │   │── __init__.py
     │   │   └── __pycache__
     │   ├── api
@@ -277,6 +408,7 @@ if __name__ == "__main__":
     │   │   │── ingest.py
     │   │   │── pdf_loader.py
     │   │   │── text_processing.py
+    │   │   │── workflow.py
     │   │   │── __init__.py
     │   │   └── __pycache__
     │   └── test

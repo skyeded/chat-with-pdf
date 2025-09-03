@@ -4,9 +4,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
 from app.models.llm_model import llm
-from app.agents.multiagent import multiagent
+from app.agents.agents import multiagent, web_agent
 from dotenv import load_dotenv
-
 from typing import Literal
 
 load_dotenv()
@@ -31,10 +30,10 @@ async def clarification_node(
 
             User question: "{message}"
             """
-    llm_response = await llm.apredict(prompt)
+    llm_response = await llm.ainvoke(prompt)
 
-    if llm_response.strip().upper() != "CLEAR":
-        clarification_msg = HumanMessage(content=llm_response.strip(), name="clarification")
+    if llm_response.content.upper() != "CLEAR":
+        clarification_msg = HumanMessage(content=llm_response.content, name="clarification")
         return Command(
             update={"messages": state["messages"] + [clarification_msg]},
             goto=END
@@ -48,7 +47,32 @@ async def multiagent_node(
     state: MessagesState,
 ) -> Command[Literal[END]]:
     result = await multiagent.ainvoke(state)
-    print(result)
+
+    ai_message = result.get("messages", [])
+    user_message = state["messages"][-1].content
+
+    prompt = f"""
+        You are an assistant whose job is to check if a direct answer to the user's query 
+        exists in the following content. Reply only 'EXISTS' if an answer exists, 
+        or 'DOES NOT EXIST' if no answer exists.
+
+        User query: "{user_message}"
+        Agent response: "{ai_message[-1].content if ai_message else ''}"
+    """
+
+    relevance = await llm.ainvoke(prompt)
+
+    if relevance.content.upper() != "EXISTS":
+        # LLM predicts not relevant → fallback to web
+        return Command(update={"messages": state["messages"]}, goto="web_agent")
+
+    return Command(update={"messages": result["messages"]}, goto=END)
+
+# node containing web_agent
+async def web_agent_node(
+    state: MessagesState,
+) -> Command[Literal[END]]:
+    result = await web_agent.ainvoke(state)
     return Command(update={"messages": result["messages"]}, goto=END)
 
 # function for clearning the memory
@@ -76,6 +100,7 @@ def clear_memory_func(memory: BaseCheckpointSaver, thread_id: str) -> None:
 workflow = StateGraph(MessagesState)
 workflow.add_node("clarify", clarification_node)
 workflow.add_node("multiagent", multiagent_node)
+workflow.add_node("web_agent", web_agent_node)
 
 workflow.add_edge(START, "clarify")
 graph = workflow.compile(checkpointer=checkpointer) # add short_term memory to graph

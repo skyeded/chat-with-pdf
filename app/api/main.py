@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 import inspect
-from app.agents.workflow import graph, clear_memory_func, checkpointer
+from app.services.workflow import graph, clear_memory_func, checkpointer
 from pprint import pprint
 import secrets
 

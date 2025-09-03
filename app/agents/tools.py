@@ -58,4 +58,8 @@ def search_vectorDB(query: str) -> str:
     
     return "\n\n".join(contexts)
 
-search_tool = DuckDuckGoSearchRun()
+# create web search tool
+search_tool = DuckDuckGoSearchRun(
+    name="duckduckgo_search",
+    description="Use this tool to search the web with DuckDuckGo and return the most relevant results."
+)

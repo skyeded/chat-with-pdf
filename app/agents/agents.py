@@ -15,3 +15,11 @@ multiagent = create_react_agent(
         "Always try PDFs first before using the web.\n"
         "If the user request to explicitly use web search then search the web."
 ))
+
+web_agent = create_react_agent(
+    model=llm,
+    tools=[search_tool],
+    prompt=make_system_prompt(
+        "You  are to search for relevant context on website using the search tool."
+    )
+)
